@@ -2,8 +2,8 @@
   <div class="container py-5">
     <h2 class="text-center mb-4">My Tasks</h2>
 
-    <!-- Task creation form -->
-    <form @submit.prevent="createTask" class="bg-white p-4 rounded shadow mb-5">
+    <!-- Task creation/edit form -->
+    <form @submit.prevent="editingTask ? updateTask() : createTask()" class="bg-white p-4 rounded shadow mb-5">
       <div class="mb-3">
         <input
           v-model="newTask.title"
@@ -31,7 +31,15 @@
         class="btn btn-primary w-100 py-2"
         :disabled="loading"
       >
-        {{ loading ? 'Creating...' : 'Add Task' }}
+        {{ loading ? (editingTask ? 'Updating...' : 'Creating...') : (editingTask ? 'Update Task' : 'Add Task') }}
+      </button>
+      <button
+        v-if="editingTask"
+        type="button"
+        @click="cancelEdit"
+        class="btn btn-secondary w-100 py-2 mt-2"
+      >
+        Cancel Edit
       </button>
     </form>
 
@@ -44,7 +52,7 @@
 
     <!-- Task list -->
     <div v-else>
-    <h2>Task List</h2>
+      <h2>Task List</h2>
       <div
         v-for="task in tasks"
         :key="task.id"
@@ -65,6 +73,12 @@
               </button>
             </div>
             <button
+              @click="editTask(task)"
+              class="btn btn-warning btn-sm mb-2"
+            >
+              Edit
+            </button>
+            <button
               @click="deleteTask(task.id)"
               class="btn btn-danger btn-sm"
             >
@@ -84,8 +98,13 @@ import axios from 'axios'
 const tasks = ref([])
 const loading = ref(false)
 const loadingTasks = ref(true)
+const editingTask = ref(null)
 
-const newTask = ref({ title: '', description: '', image: null })
+const newTask = ref({
+  title: '',
+  description: '',
+  image: null,
+})
 
 const fetchTasks = async () => {
   loadingTasks.value = true
@@ -105,7 +124,26 @@ const createTask = async () => {
 
   await axios.post('/api/tasks', formData)
   await fetchTasks()
-  newTask.value = { title: '', description: '', image: null }
+  resetForm()
+  loading.value = false
+}
+
+const updateTask = async () => {
+  if (!editingTask.value) return
+  loading.value = true
+
+  const formData = new FormData()
+  formData.append('title', newTask.value.title)
+  formData.append('description', newTask.value.description)
+  if (newTask.value.image) {
+    formData.append('image', newTask.value.image)
+  }
+  formData.append('_method', 'PUT')
+
+  await axios.post(`/api/tasks/${editingTask.value}`, formData)
+  editingTask.value = null
+  resetForm()
+  await fetchTasks()
   loading.value = false
 }
 
@@ -116,6 +154,28 @@ const handleImage = (e) => {
 const deleteTask = async (id) => {
   await axios.delete(`/api/tasks/${id}`)
   await fetchTasks()
+}
+
+const editTask = (task) => {
+  editingTask.value = task.id
+  newTask.value = {
+    title: task.title,
+    description: task.description,
+    image: null,
+  }
+}
+
+const cancelEdit = () => {
+  editingTask.value = null
+  resetForm()
+}
+
+const resetForm = () => {
+  newTask.value = {
+    title: '',
+    description: '',
+    image: null,
+  }
 }
 
 const downloadImage = async (taskId) => {
@@ -141,7 +201,3 @@ onMounted(() => {
   fetchTasks()
 })
 </script>
-
-<style scoped>
-/* You can add custom CSS if necessary, but this design is fully Bootstrap-based */
-</style>
